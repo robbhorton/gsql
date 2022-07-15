@@ -1,7 +1,7 @@
 SET exit_on_error = TRUE
 
 USE GRAPH SyntheaGraph
-CREATE SCHEMA_CHANGE JOB schema_change_job_createsynthea FOR GRAPH DemoFidel { 
+CREATE SCHEMA_CHANGE JOB schema_change_job_createsynthea FOR GRAPH SyntheaGraph { 
 
 ADD VERTEX _Gender(PRIMARY_ID gender_id STRING) WITH primary_id_as_attribute="true";
 
