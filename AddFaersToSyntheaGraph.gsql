@@ -1,0 +1,588 @@
+USE GRAPH SyntheaGraph()
+CREATE SCHEMA_CHANGE JOB schema_change_job_aHV3Ii FOR GRAPH SyntheaGraph { 
+  ADD VERTEX Cases(PRIMARY_ID caseid STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+  ADD VERTEX Reactions(PRIMARY_ID pt STRING, drug_rec_act STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="false";
+  ADD VERTEX Drug(PRIMARY_ID drugname STRING, prod_ai STRING, val_vbm STRING, route STRING, dose_vbm STRING, cum_dose_chr STRING, cum_dose_unit STRING, dechal STRING, rechal STRING, lot_num STRING, exp_dt STRING, nda_num STRING, dose_amt STRING, dose_unit STRING, dose_form STRING, dose_freq STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="true";
+  ADD VERTEX Demographic(PRIMARY_ID primaryid STRING, caseversion STRING, i_f_code STRING, event_dt STRING, mfr_dt STRING, init_fda_dt STRING, fda_dt STRING, rept_cod STRING, auth_num STRING, mfr_num STRING, mfr_sndr STRING, lit_ref STRING, age STRING, age_cod STRING, sex STRING, e_sub STRING, wt STRING, wt_cod STRING, rept_dt STRING, to_mfr STRING, occp_cod STRING, reporter_country STRING, occr_country STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+  ADD VERTEX Outcome(PRIMARY_ID outc_cod STRING, outcomeDesc STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="true";
+  ADD VERTEX ReportSources(PRIMARY_ID rspr_cod STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="true";
+  ADD VERTEX Indication(PRIMARY_ID indi_pt STRING, indi_drug_seq INT) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="false";
+  ADD VERTEX DrugSequence(PRIMARY_ID primaryid STRING, start_dt STRING, end_dt STRING, dur STRING, dur_cod STRING, dsg_drug_seq STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+  ADD VERTEX doseAmt(PRIMARY_ID doseAmtID STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="true";
+  ADD VERTEX doseForm(PRIMARY_ID doesFormID STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="true";
+  ADD VERTEX route(PRIMARY_ID routeID STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="true";
+  ADD VERTEX drugName(PRIMARY_ID drugNameID STRING, drugNameLen UINT) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="true";
+  ADD VERTEX doseUnit(PRIMARY_ID doseUnitID STRING) WITH STATS="OUTDEGREE_BY_EDGETYPE", PRIMARY_ID_AS_ATTRIBUTE="true";
+  ADD UNDIRECTED EDGE _SIMILAR_TO(FROM _Patient, TO _Patient, sim_score FLOAT);
+  ADD DIRECTED EDGE _PATIENT_HAS_CONDITION_CODE(FROM _Patient, TO _SnomedCode, frequency UINT) WITH REVERSE_EDGE="reverse_PATIENT_HAS_CONDITION_CODE";
+  ADD UNDIRECTED EDGE caseReaction(FROM Cases, TO Reactions);
+  ADD UNDIRECTED EDGE caseDemographic(FROM Cases, TO Demographic);
+  ADD UNDIRECTED EDGE hasOutcome(FROM Cases, TO Outcome);
+  ADD UNDIRECTED EDGE caseRSPR(FROM Cases, TO ReportSources);
+  ADD UNDIRECTED EDGE prescribedDrugs(FROM Cases, TO Drug, drug_seq STRING, role_cod STRING, prod_ai STRING, val_vbm STRING, route STRING, dose_vbm STRING, cum_dose_chr STRING, cum_dose_unit STRING, dechal STRING, rechal STRING, lot_num STRING, exp_dt STRING, nda_num STRING, dose_amt STRING, dose_unit STRING, dose_form STRING, dose_freq STRING);
+  ADD UNDIRECTED EDGE hasSymptoms(FROM Indication, TO Cases);
+  ADD UNDIRECTED EDGE hasSequence(FROM DrugSequence, TO Cases);
+  ADD UNDIRECTED EDGE hasDrugName(FROM Drug, TO drugName|FROM _Medication, TO drugName);
+  ADD UNDIRECTED EDGE hasRoute(FROM Drug, TO route|FROM _Medication, TO route);
+  ADD UNDIRECTED EDGE hasDoesAmt(FROM Drug, TO doseAmt|FROM _Medication, TO doseAmt);
+  ADD UNDIRECTED EDGE hasDoseForm(FROM Drug, TO doseForm|FROM _Medication, TO doseForm);
+  ADD UNDIRECTED EDGE hasDoseUnit(FROM Drug, TO doseUnit|FROM _Medication, TO doseUnit);
+  ADD UNDIRECTED EDGE sameAs(FROM _Medication, TO Drug);
+}
+RUN SCHEMA_CHANGE JOB schema_change_job_aHV3Ii
+DROP JOB schema_change_job_aHV3Ii
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_RPSR21Q1_csv_1625070263574 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX ReportSources VALUES($2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD MyDataSource TO EDGE caseRSPR VALUES($1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_REAC21Q1_csv_1625072822243 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX Reactions VALUES($2, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD MyDataSource TO EDGE caseReaction VALUES($1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_DRUG21Q1_csv_1625074726179 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX Drug VALUES($4, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE prescribedDrugs VALUES($1, $4, $2, $3, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_THER21Q1_csv_1625070295851 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX DrugSequence VALUES($0, $3, $4, $5, $6, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD MyDataSource TO EDGE hasSequence VALUES($0, $1) USING SEPARATOR=",", HEADER="true", EOL="\n";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_INDI21Q1_csv_1625070212059 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX Indication VALUES($1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD MyDataSource TO EDGE hasSymptoms VALUES($3, $1) USING SEPARATOR=",", HEADER="true", EOL="\n";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_DEMO21Q1_csv_1625074754309 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX Demographic VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16, $17, $18, $19, $20, $21, $22, $23, $24) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE caseDemographic VALUES($1, $0) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB LoadRestPP_SynAll FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME f10;
+      DEFINE FILENAME f12;
+      DEFINE FILENAME f11;
+      DEFINE FILENAME f14;
+      DEFINE FILENAME f13;
+      DEFINE FILENAME f16;
+      DEFINE FILENAME f1;
+      DEFINE FILENAME f15;
+      DEFINE FILENAME f2;
+      DEFINE FILENAME f18;
+      DEFINE FILENAME f3;
+      DEFINE FILENAME f17;
+      DEFINE FILENAME f4;
+      DEFINE FILENAME f5;
+      DEFINE FILENAME f6;
+      DEFINE FILENAME f7;
+      DEFINE FILENAME f8;
+      DEFINE FILENAME f9;
+      LOAD f1 TO VERTEX _Allergies VALUES($0, $5, $6, $1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f1 TO VERTEX _SnomedCode VALUES($5, $6) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f2 TO VERTEX _Careplans VALUES($0, $6, $1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f2 TO VERTEX _SnomedCode VALUES($5, $6) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f2 TO VERTEX _SnomedCode VALUES($7, $8) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f3 TO VERTEX _Conditions VALUES($0, $5, $6, $1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f3 TO VERTEX _SnomedCode VALUES($5, $6) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f4 TO VERTEX _Device VALUES($6, $5, $0, $1) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f4 TO VERTEX _SnomedCode VALUES($4, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f5 TO VERTEX _Encounter VALUES($0, $10, $11, $12, $7, $1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f5 TO VERTEX _SnomedCode VALUES($8, $9) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f5 TO VERTEX _SnomedCode VALUES($13, $14) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f6 TO VERTEX _ImagingStudies VALUES($0, $5, $6, $7, $8, $10, $11, $1) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f6 TO VERTEX _SnomedCode VALUES($4, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f7 TO VERTEX _Immunizations VALUES($0, $4, $5, $1, $6) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f7 TO VERTEX _SnomedCode VALUES($4, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f8 TO VERTEX _State VALUES($3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f8 TO VERTEX _County VALUES(gsql_concat($3,$5), $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f8 TO VERTEX _City VALUES(gsql_concat($3,$2), $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f9 TO VERTEX _Medication VALUES($0, $6, $7, $1, $2, $8, $9, $10, $11) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f9 TO VERTEX _SnomedCode VALUES($6, $7) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f9 TO VERTEX _SnomedCode VALUES($12, $13) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f10 TO VERTEX _Observations VALUES($0, $1, $4, $5, $6, $7) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f10 TO VERTEX _SnomedCode VALUES($4, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f11 TO VERTEX _Organizations VALUES($0, $1, $9, $10, $8) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f11 TO VERTEX _Address VALUES(gsql_concat($6,$7), $2, $6, $7) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f12 TO VERTEX _Patient VALUES($0, $8, $7, $10, $1, $3, $4, $5, $23, $24, $9, $6, $11, $15) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f12 TO VERTEX _Address VALUES(gsql_concat($21,$22), $16, $21, $22) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f13 TO VERTEX _Payer VALUES(gsql_concat($0,$20), $1, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f13 TO VERTEX _Address VALUES(gsql_concat($21,$22), $2, $21, $22) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f15 TO VERTEX _Procedures VALUES($0, $5, $6, $7, $1) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f15 TO VERTEX _SnomedCode VALUES($4, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f15 TO VERTEX _SnomedCode VALUES($7, $8) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f16 TO VERTEX _Providers VALUES($0, $2, $11, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f16 TO VERTEX _Address VALUES(gsql_concat($9,$10), $5, $9, $10) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f17 TO VERTEX _ZipCode VALUES($4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f18 TO VERTEX _Supplies VALUES($0, $1, $2, $3, $4, $5, $6) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f18 TO VERTEX _SnomedCode VALUES($4, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f1 TO EDGE _PATIENT_HAS_ALLERGY VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f1 TO EDGE _ALLERGY_CODE VALUES($0, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f1 TO EDGE _ENCOUNTER_FOR_ALLERGY VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f2 TO EDGE _PATIENT_HAS_CAREPLAN VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f2 TO EDGE _ENCOUNTER_FOR_CAREPLAN VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f2 TO EDGE _CAREPLAN_CODE VALUES($0, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f2 TO EDGE _CAREPLAN_REASON_CODE VALUES($0, $7) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f3 TO EDGE _CONDITION_CODE VALUES($0, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f3 TO EDGE _PATIENT_HAS_CONDITION VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f3 TO EDGE _ENCOUNTER_FOR_CONDITION VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f4 TO EDGE _PATIENT_HAS_DEVICE VALUES($6, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f4 TO EDGE _DEVICE_CODE VALUES($6, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f4 TO EDGE _ENCOUNTER_FOR_DEVICE VALUES($6, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f5 TO EDGE _ENCOUNTER_FOR_PATIENT VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f5 TO EDGE _ENCOUNTER_UNDER_ORGANIZATION VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f5 TO EDGE _ENCOUNTER_HAS_PAYER VALUES($0, $6) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f5 TO EDGE _ENCOUNTER_HAS_PROVIDER VALUES($0, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f5 TO EDGE _ENCOUNTER_CODE VALUES($0, $8) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f5 TO EDGE _ENCOUNTER_REASON_CODE VALUES($0, $13) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f6 TO EDGE _PATIENT_HAS_IMAGING VALUES($0, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f6 TO EDGE _ENCOUNTER_FOR_IMAGING VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f6 TO EDGE _IMAGING_CODE VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f7 TO EDGE _IMMUNIZATION_CODE VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f7 TO EDGE _PATIENT_HAS_IMMUNIZATION VALUES($0, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f7 TO EDGE _ENCOUNTER_FOR_IMMUNIZATION VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f8 TO EDGE _STATE_HAS_COUNTY VALUES($3, gsql_concat($3,$5)) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f8 TO EDGE _COUNTY_HAS_CITY VALUES(gsql_concat($3,$5), gsql_concat($3,$2)) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f9 TO EDGE _MEDICATION_PAYER VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f9 TO EDGE _PATIENT_HAS_MEDICATION VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f9 TO EDGE _MEDICATION_REASON_CODE VALUES($0, $12) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f9 TO EDGE _MEDICATION_CODE VALUES($0, $6) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f9 TO EDGE _ENCOUNTER_FOR_MEDICATION VALUES($0, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f10 TO EDGE _OBSERVATION_FOR_PATIENT VALUES($0, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f10 TO EDGE _ENCOUNTER_FOR_OBSERVATION VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f10 TO EDGE _OBSERVATION_CODE VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f11 TO EDGE _ADDRESS_CITY VALUES(gsql_concat($6,$7), $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f11 TO EDGE _ADDRESS_ZIPCODE VALUES(gsql_concat($6,$7), $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f11 TO EDGE _ORGANIZATION_ADDRESS VALUES($0, gsql_concat($6,$7)) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f12 TO EDGE _PATIENT_GENDER VALUES($0, $14) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f12 TO EDGE _PATIENT_RACE VALUES($0, $12) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f12 TO EDGE _PATIENT_ETHNICITY VALUES($0, $13) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f12 TO EDGE _PATIENT_ADDRESS VALUES($0, gsql_concat($21,$22)) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f12 TO EDGE _ADDRESS_COUNTY VALUES(gsql_concat($21,$22), $19) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f12 TO EDGE _ADDRESS_ZIPCODE VALUES(gsql_concat($21,$22), $20) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f12 TO EDGE _ADDRESS_CITY VALUES(gsql_concat($21,$22), $17) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f13 TO EDGE _PAYER_ADDRESS VALUES(gsql_concat($0,$20), gsql_concat($21,$22)) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f13 TO EDGE _ADDRESS_CITY VALUES(gsql_concat($21,$22), $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f13 TO EDGE _ADDRESS_ZIPCODE VALUES(gsql_concat($21,$22), $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f13 TO EDGE _ADDRESS_COUNTY VALUES(gsql_concat($21,$22), $23) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f14 TO EDGE _PAYER_TRANSITION VALUES($3, $0, $1, $2, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f15 TO EDGE _PROCEDURE_CODE VALUES($0, $5) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f15 TO EDGE _PROCEDURE_REASON_CODE VALUES($0, $8) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f15 TO EDGE _ENCOUNTER_FOR_PROCEDURE VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f15 TO EDGE _PATIENT_HAS_PROCEDURE VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f16 TO EDGE _PROVIDER_GENDER VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f16 TO EDGE _ADDRESS_CITY VALUES(gsql_concat($9,$10), $6) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f16 TO EDGE _ADDRESS_ZIPCODE VALUES(gsql_concat($9,$10), $8) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f16 TO EDGE _PROVIDER_HAS_ORGANIZATION VALUES($0, $1) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f16 TO EDGE _PROVIDER_ADDRESS VALUES($0, gsql_concat($9,$10)) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f17 TO EDGE _CITY_HAS_ZIPCODE VALUES(gsql_concat($1,$3), $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f18 TO EDGE _SUPPLY_CODE VALUES($0, $4) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f18 TO EDGE _SUPPLIES_FOR_PATIENT VALUES($0, $2) USING SEPARATOR=",", HEADER="true", EOL="\n";
+      LOAD f18 TO EDGE _SUPPLIES_PER_ENCOUNTER VALUES($0, $3) USING SEPARATOR=",", HEADER="true", EOL="\n";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_DEMO21Q1_csv_1625600002932 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX Demographic VALUES($0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16, $17, $18, $19, $20, $21, $22, $23, _) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE caseDemographic VALUES($1, $0) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_INDI21Q1_csv_1625600286464 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX Indication VALUES($3, $2) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE hasSymptoms VALUES($3, $1) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_RPSR21Q1_csv_1625600644983 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX ReportSources VALUES($2) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE caseRSPR VALUES($1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_OUTC21Q1_csv_1625600427270 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO EDGE hasOutcome VALUES($1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_outcomes___Sheet1_csv_1625750423768 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX Outcome VALUES($0, $1) USING SEPARATOR=",", HEADER="true", EOL="\n";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_REAC21Q1_csv_1625772874654 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX Reactions VALUES($2, $3) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE caseReaction VALUES($1, $2) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+    }
+
+set exit_on_error = "true"
+set exit_on_error = "false"
+CREATE LOADING JOB load_job_DRUG21Q1_csv_1625600052022 FOR GRAPH SyntheaGraph {
+      DEFINE FILENAME MyDataSource;
+      LOAD MyDataSource TO VERTEX drugName VALUES($4, gsql_length($4)) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO VERTEX Drug VALUES(gsql_concat($4," ",$16," ",$17," ",$7,_,$18), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO VERTEX doseForm VALUES($18) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO VERTEX doseAmt VALUES($16) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO VERTEX route VALUES($7) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO VERTEX doseUnit VALUES($17) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE hasDrugName VALUES(gsql_concat($4," ",$16," ",$17," ",$7," ",$18) Drug, $4 drugName) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE hasDoseForm VALUES(gsql_concat($4," ",$16," ",$17," ",$7," ",$18) Drug, $18 doseForm) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE hasDoesAmt VALUES(gsql_concat($4," ",$16," ",$17," ",$7," ",$18) Drug, $16 doseAmt) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE hasDoseForm VALUES(gsql_concat($4," ",$16," ",$17," ",$7," ",$18) Drug, $18 doseForm) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE hasDrugName VALUES(gsql_concat($4," ",$16," ",$17," ",$7," ",$18) Drug, $4 drugName) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE hasDoseUnit VALUES(gsql_concat($4," ",$16," ",$17," ",$7," ",$18) Drug, $17 doseUnit) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+      LOAD MyDataSource TO EDGE hasRoute VALUES(gsql_concat($4," ",$16," ",$17," ",$7,_,$18) Drug, $7 route) USING SEPARATOR=",", HEADER="true", EOL="\n", QUOTE="double";
+    }
+
+set exit_on_error = "true"
+create or replace query Counts(/* Parameters here */) FOR GRAPH SyntheaGraph { 
+  
+  SumAccum <INT> @@gendersum;
+  SumAccum <INT> @@psum;
+ // SumAccum <INT> @@sims;
+ // OrAccum @visited = false;
+  
+  seed1= {_Gender.*};
+  seed2= {_Patient.*};
+
+  
+  patients_w_gender = select s from seed1:a -(_PATIENT_GENDER)- _Patient:s 
+            ACCUM @@gendersum += 1;
+  
+  //sim = select p from seed2:a -(_SIMILAR_TO)-_Patient:p
+     //     ACCUM p.@visited=true, @@sims += 1;
+  
+  PRINT @@gendersum;
+  PRINT @@psum; 
+  //PRINT @@sims;
+}
+CREATE OR REPLACE QUERY patient_insert_condition_codes(/* Parameters here */) FOR GRAPH SyntheaGraph { 
+  
+  MapAccum<VERTEX<_Patient>, SumAccum<INT>> @patients;
+  
+  Start = {_Patient.*};
+  
+  Conditions = SELECT t FROM Start:s -(_PATIENT_HAS_CONDITION:e)- _Conditions:t ACCUM t.@patients += (s -> 1);
+  Codes = SELECT t FROM Conditions:s -(_CONDITION_CODE:e)- _SnomedCode:t ACCUM t.@patients += s.@patients;
+  Codes = SELECT s FROM Codes:s 
+        POST-ACCUM
+          FOREACH (patient, freq) IN s.@patients DO
+            INSERT INTO _PATIENT_HAS_CONDITION_CODE VALUES (patient, s, freq)
+          END;
+  
+  PRINT "patient_insert_condition_codes works!"; 
+}
+CREATE QUERY createEdges(/* Parameters here */) FOR GRAPH SyntheaGraph { 
+  /* Write query logic here */ 
+
+  ListAccum<STRING> @@doseForm, @@doseAmt, @@route, @@doseUnit, @@drugName, @@meds;
+  
+  /*start = {doseForm.*};
+
+  start = select s from start:s post-accum @@doseForm += s.doesFormID;
+  
+  start = {_Medication.*};
+  
+  start = select s from start:s 
+         post-accum
+           string descp = lower(s.description),
+           foreach str in @@doseForm do
+             string match_str = lower("%" + str + "%"),
+             if descp like match_str THEN insert into hasDoseForm values(s.medication_id _Medication, str) end
+            end;*/
+  
+  # generate edges for dose amt
+/*    start = {doseAmt.*};
+
+  start = select s from start:s post-accum @@doseAmt += s.doseAmtID;
+  PRINT start;
+  start = {_Medication.*};
+  
+  start = select s from start:s 
+         post-accum
+           string descp = lower(s.description),
+           foreach str in @@doseAmt do
+             string match_str = lower("%" + str + "%"),
+             if descp like match_str THEN insert into hasDoesAmt values(s.medication_id _Medication, str) end
+            end; */
+  
+  # generate edges for route
+  
+  /*  start = {route.*};
+
+  start = select s from start:s post-accum @@route += s.routeID;
+  print start;
+  start = {_Medication.*};
+  
+  start = select s from start:s 
+         post-accum
+           string descp = lower(s.description),
+           foreach str in @@route do
+             string match_str = lower("%" + str + "%"),
+             if descp like match_str THEN insert into hasRoute values(s.medication_id _Medication, str) end
+            end;
+ */
+ # dose unit
+/*   start = {doseUnit.*};
+
+  start = select s from start:s post-accum @@doseUnit += s.doseUnitID;
+  
+  start = {_Medication.*};
+  
+  start = select s from start:s 
+         post-accum
+           string descp = lower(s.description),
+           foreach str in @@doseUnit do
+             string match_str = lower("%" + str + "%"),
+             if descp like match_str THEN insert into hasDoseUnit values(s.medication_id _Medication, str) end
+            end;
+            */
+  # drugname
+  
+    start = {drugName.*};
+
+  start = select s from start:s post-accum @@drugName += s.drugNameID limit 5;
+  print start; 
+  start = {_Medication.*};
+  
+  start = select s from start:s 
+        ACCUM
+            @@meds += lower(s.description)
+            ,string descp = lower(s.description)
+            ,foreach str in @@drugName do
+             string match_str = lower("%" + str + "%"),
+             if descp like match_str THEN insert into hasDrugName values(s.medication_id _Medication, str) end
+            end  
+ 
+
+        ;
+  print @@meds;
+  
+/*
+  WHERE m.description LIKE gsql_concat("%",s.drugName,"%")
+  ;
+  /*
+  POST-ACCUM
+   FOREACH (d, f) IN DO
+                  SELECT m FROM _Medication:m WHERE m.description LIKE gsql_concat("%",s.drugName,"%")
+                  INSERT INTO EDGE correlation VALUES (d, t, f/@@diagnosisNumClaims.get(d))
+                END; 
+ # ACCUM @@mycount += 1;
+  MaxAccum<VERTEX<Diagnosis>> @diagnosis;
+  MapAccum<VERTEX<Diagnosis>, SumAccum<FLOAT>> @diagnosisFrequency, @@diagnosisNumClaims;
+  
+  Diagnoses = {Diagnosis.*};
+  
+  Claims = SELECT t 
+          FROM Diagnoses:s -(hasDiagnosis:e)- Claim:t 
+          ACCUM 
+            t.@diagnosis += s
+          POST-ACCUM
+            @@diagnosisNumClaims += (s -> s.outdegree("hasDiagnosis"));
+  
+  Procedures = SELECT t 
+              FROM Claims:s -(hasProcedure:e)- Procedure:t 
+              ACCUM 
+                t.@diagnosisFrequency += (s.@diagnosis -> 1)
+              POST-ACCUM
+                FOREACH (d, f) IN t.@diagnosisFrequency DO
+                  INSERT INTO EDGE correlation VALUES (d, t, f/@@diagnosisNumClaims.get(d))
+                END;
+  
+  PRINT "gen_correlation works!"; 
+}
+  PRINT "createEdges works!"; 
+*/}
+create or replace query Patient_CEP_Journey (STRING firstName, STRING lastName) for graph SyntheaGraph {
+//Try Danny396 Frami345
+
+    ListAccum<EDGE> @@edgelist;
+    Seed = {_Patient.*};
+
+    patient = select s
+                FROM Seed:s -() -:t
+                where s.lastName == lastName and s.firstName == firstName;
+
+    condition = select c
+                from Seed:s -(_PATIENT_HAS_CONDITION:e) -_Conditions:c
+                where s.lastName == lastName and s.firstName == firstName
+                ACCUM @@edgelist+=e;
+  
+    encounter = select e from condition:r -(_ENCOUNTER_FOR_CONDITION:ec)-_Encounter:e 
+                ACCUM @@edgelist+=ec;
+  
+    provider = select p from encounter:e -(_ENCOUNTER_HAS_PROVIDER:ep)-_Providers:p 
+                ACCUM @@edgelist+=ep;
+
+    print patient;
+    print condition;
+    print encounter;
+    print provider;
+    PRINT @@edgelist;
+}
+CREATE QUERY patient_label_prop (INT maxIter, FLOAT threshold, INT communitySizeThreshold = 1) FOR GRAPH SyntheaGraph {
+# Partition the vertices into communities, according to the Label Propagation method.
+# Indicate community membership by assigning each vertex a community ID.
+#Iterations at 5 or 10 is fine for convergence
+
+        OrAccum @@changed = true;
+        MapAccum<int, AvgAccum> @map;     # <communityId, numNeighbors>
+        MapAccum<int, ListAccum<VERTEX<_Patient>>> @@comms;   # <communityId, members>
+        MapAccum<INT, AvgAccum> @@commStrength;
+        SumAccum<int> @label, @num;
+        //FLOAT threshold;
+  
+        Start = {_Patient.*};
+# Assign unique labels to each vertex
+        Start = SELECT s FROM Start:s -(_SIMILAR_TO:e)- _Patient:t POST-ACCUM s.@label = getvid(s);
+
+# Propagate labels to neighbors until labels converge or the max iterations is reached
+        WHILE @@changed == true LIMIT maxIter DO
+                @@changed = false;
+                Internal = SELECT s 
+                        FROM Start:s -(_SIMILAR_TO:e)-> :t
+                        WHERE e.sim_score >= threshold
+                        ACCUM t.@map += (s.@label -> e.sim_score)  # count the occurrences of neighbor's labels
+                        POST-ACCUM
+                                INT maxV = 0,
+                                INT label = 0,
+                                # Iterate over the map to get the neighbor label that occurs most often
+                                FOREACH (k,v) IN t.@map DO
+                                        CASE WHEN v > maxV THEN
+                                                maxV = v,
+                                                label = k
+                                        END
+                                END,
+                                # When the neighbor search finds a label AND it is a new label
+                                # AND the label's count has increased, update the label.
+                                CASE WHEN label != 0 AND t.@label != label AND maxV > t.@num THEN
+                                //        @@commStrength += (label -> maxV),
+                                        @@changed += true,
+                                        t.@label = label,
+                                        t.@num = maxV
+                                END,
+                                t.@map.clear();
+        END;
+
+        Start = SELECT s FROM Start:s
+                POST-ACCUM @@comms += (s.@label -> s);
+        FOREACH (label, comm) IN @@comms DO
+          IF comm.size() > communitySizeThreshold THEN
+            PRINT comm;
+          END;
+        END;
+        // PRINT @@comms;
+        Start = SELECT s FROM Start:s
+                HAVING @@comms.get(s.@label).size() > communitySizeThreshold;
+        PRINT Start[Start.@label];
+ 
+}
+CREATE QUERY patient_jaccard_similarity_batch (int topK, int startSample, FLOAT sim_threshold, bool print_accum = true, int num_of_batches = 10) FOR GRAPH SyntheaGraph {
+  /*
+    Calculates the Jaccard Simiarlity between a given vertex and every other vertex.
+      Jaccard Similarity = intersection_size / (setSize_all + setSize_self - intersection_size)
+
+    Paramaters :
+      topK    : # of top scores to report for each vertex
+      print_accum : print JSON output
+      num_of_batches  : how many batches to split up the query into (trade off parallelism for memory optimization)
+  */
+  TYPEDEF TUPLE<VERTEX<_Patient> ver, float val> res_tup; # storing results in the Heap
+  MapAccum<VERTEX<_Patient>, INT> @@setSize_all, @intersectionSize; # set sizes of all vertices
+  SumAccum<INT> @setSize_self; # set size of each vertex
+  HeapAccum<res_tup>(topK, val desc) @heap; # stores topK similarity results
+  MapAccum<VERTEX<_Patient>, AvgAccum> @similarity; # map of similarity scores for each vertex
+
+# get set sizes for all given vertices of the input type
+  Start = {_Patient.*};
+  Start = SELECT s FROM Start:s LIMIT startSample;
+  
+  PRINT Start.size();
+  
+  Start = SELECT s
+          FROM Start:s
+          ACCUM 
+            s.@setSize_self += s.outdegree("_PATIENT_HAS_CONDITION_CODE"), 
+            @@setSize_all += (s -> s.outdegree("_PATIENT_HAS_CONDITION_CODE"));
+
+# get global comparison of set sizes of input vertex type
+  ConditionCodes = SELECT t
+             FROM Start:s-(_PATIENT_HAS_CONDITION_CODE:e)-_SnomedCode:t
+             ACCUM t.@intersectionSize += (s -> 1);// @@setSize_all += (s -> s.outdegree("_PATIENT_HAS_CONDITION_CODE"));
+
+  //PRINT "BEFORE BATCHES", now();
+  
+  # first get intersection size for each vertex
+  FOREACH i IN RANGE[0,num_of_batches-1] DO
+    //PRINT "ITERATION:", i, now();
+    Others = SELECT t
+             FROM ConditionCodes:s-(:e)-_Patient:t
+             WHERE getvid(t) % num_of_batches == i
+             ACCUM
+               t.@intersectionSize += s.@intersectionSize
+            POST-ACCUM
+              FOREACH (k,v) IN t.@intersectionSize DO
+                IF k == t THEN
+                  CONTINUE
+                END,
+                FLOAT div = @@setSize_all.get(k) + t.@setSize_self - v,
+                IF div > 0 THEN
+                  t.@heap += res_tup(k, v/div)
+                END
+              END,
+              t.@intersectionSize.clear();
+  END;
+  
+ // PRINT "END", now();
+
+  
+# output to file/JSON or insert edge
+  Start = SELECT t
+          FROM Start:t
+          POST-ACCUM
+            FOREACH tup IN t.@heap DO
+              CASE WHEN tup.val > sim_threshold THEN
+                  INSERT INTO EDGE _SIMILAR_TO VALUES (t, tup.ver, tup.val)
+              END
+            END
+            ORDER BY getvid(t) ASC;
+  
+  
+  Start = SELECT s FROM Start:s LIMIT 50;
+  IF print_accum THEN
+    PRINT Start[Start.@heap];
+  END;
+}
