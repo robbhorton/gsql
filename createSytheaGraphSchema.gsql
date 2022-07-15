@@ -123,4 +123,4 @@ ADD UNDIRECTED EDGE _SUPPLY_CODE(FROM _Supplies, TO _SnomedCode);
 ADD UNDIRECTED EDGE _SUPPLIES_FOR_PATIENT(FROM _Supplies, TO _Patient);
 ADD UNDIRECTED EDGE _SUPPLIES_PER_ENCOUNTER(FROM _Supplies, TO _Encounter);
 }
-RUN SCHEMA CHANGE JOB schema_change_job_createsynthea
+RUN SCHEMA_CHANGE JOB schema_change_job_createsynthea
